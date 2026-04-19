@@ -88,3 +88,13 @@ All settings saved automatically.
 - High score tracking
 - Sound effects and music
 - Better graphics (pixel art sprites)
+
+## Git/Github Commands
+
+To push changes to github:
+
+```
+git add .
+git commit -m "description of changes"
+git push origin main
+```
