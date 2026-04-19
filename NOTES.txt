@@ -1,0 +1,415 @@
+# Mobile-First Bullet Hell Implementation Plan
+
+## Overview
+
+This document outlines the conversion of the MVP bullet hell game from a PC-focused keyboard game to a mobile-first experience optimized for iPhone, with secondary support for Android and PC. The game will maintain its vertical-only orientation across all platforms.
+
+---
+
+## 1. Resolution & Scaling
+
+### 1.1 Base Resolution
+- Change from 480x720 to **360x640**
+- Covers minimum iPhone SE resolution when scaled
+- Maintains vertical portrait aspect ratio (~9:16)
+
+### 1.2 Scaling Strategy
+- Dynamically scale game canvas to fit window height
+- Maintain aspect ratio (horizontal letterboxing if needed)
+- Use Phaser's camera scaling with CSS for crisp rendering
+- Handle device pixel ratio for Retina displays
+
+### 1.3 Object Size Adjustments
+- Player: Reduce from 30x30 to ~24x24
+- Bullets: Reduce from 8x8 to ~6x6
+- Enemies: Reduce from 40x40 to ~32x32
+- Scale proportionally to 360x640 base
+
+### 1.4 UI Positioning
+- Convert hardcoded pixel positions to proportional values
+- Use `game.scale.width * percentage` for horizontal positioning
+- Use `game.scale.height * percentage` for vertical positioning
+
+---
+
+## 2. Touch Control System
+
+### 2.1 D-Pad Component
+
+**Layout:**
+- Four directional buttons arranged in cross pattern inside circular square
+- Each button is a translucent circle (~50px diameter)
+- Buttons: Up, Down, Left, Right positioned in classic D-pad formation
+
+**Position:**
+- Default: Lower right side of screen
+- Distance from edge: ~30px
+- Center of D-pad at approximately (x: 90% of screen width, y: 90% of screen height)
+
+**Behavior:**
+- Each button sets player velocity in that direction
+- Release button player stops in that axis (allows combined movement)
+- Multi-touch support: Can move diagonally by holding two buttons
+- Visual feedback: Active state (brighter) when pressed
+
+**Style:**
+- 40% opacity when inactive
+- 80% opacity when active (pressed)
+- Circular shape with visible border
+- Background: Dark color with lighter border
+
+### 2.2 Fire Button Component
+
+**Position:**
+- Left side of screen, vertically centered in bottom third
+- Approximately (x: 15% of screen width, y: 85% of screen height)
+
+**Behavior:**
+- Tap Single bullet fired
+- Hold 2 seconds Toggles autofire on/off
+- Autofire on Continuous bullets at fire rate
+- Autofire off Tap-to-fire only
+
+**Style:**
+- Circular button, larger than D-pad buttons (~60px diameter)
+- 40% opacity translucent
+- Red or orange color to indicate "danger/action"
+- 80% opacity when pressed
+
+### 2.3 Movement Logic
+
+**Keyboard (existing, retained):**
+- Arrow keys or WASD Horizontal movement only
+- Space or W Fire
+
+**Touch (new):**
+- D-pad buttons Full 4-directional movement (up/down/left/right)
+- Fire button Tap or autofire behavior
+
+**Hybrid:**
+- Both input methods work simultaneously
+- Touch overrides keyboard for movement
+- Fire button works alongside keyboard spacebar
+
+---
+
+## 3. Settings Menu
+
+### 3.1 Menu Scene Type
+- New scene that pauses the main game scene
+- Overlay on top of paused gameplay
+- Black semi-transparent background
+
+### 3.2 Menu Options
+
+**D-Pad Position:**
+- Left side (for right-handed players)
+- Right side (default, for left-handed players)
+
+**Touch Controls Visibility:**
+- Always visible
+- Hidden (touch zones only)
+- Invisible mode (no controls visible, requires memorized positions)
+
+**Enable Touch Controls:**
+- ON (uses touch + pointer)
+- OFF (keyboard/mouse only)
+
+**Autofire Default:**
+- Start game with autofire ON
+- Start game with autofire OFF
+
+### 3.3 Menu UI Components
+- Title: "Settings" at top
+- Toggle switches or buttons for each option
+- "Back" button to return to game
+- "Main Menu" button (future implementation)
+
+### 3.4 Data Persistence
+- Save all settings to localStorage
+- Load settings on game startup
+- Apply settings before creating game objects
+
+---
+
+## 4. Pause System
+
+### 4.1 Pause Triggers
+- Settings menu open Pause game
+- Future: Pause button tap Pause game
+
+### 4.2 Pause Behavior
+- this.physics.pause() stops all physics
+- this.scene.pause() stops update loop
+- Game state preserved (score, player position, etc.)
+
+### 4.3 Resume Behavior
+- this.physics.resume() when unpause
+- this.scene.resume() restores update loop
+- Time delta handled automatically by Phaser
+
+---
+
+## 5. File Structure Changes
+
+### 5.1 Modified Files
+
+**game.js:**
+- Update all constants for new resolution
+- Add touch control creation in create()
+- Add touch control update in update()
+- Add pause/resume methods
+- Add settings loading/saving
+
+**index.html:**
+- Update viewport meta tag for mobile
+- Add CSS for full-height canvas
+- Add CSS for touch-action to prevent scrolling
+
+### 5.2 New Files (Future)
+
+**settings.js:**
+- Separate file for settings management
+- LocalStorage helper functions
+- Default values
+
+**touch-controls.js:**
+- D-pad component class
+- Fire button component class
+- Touch event handlers
+
+---
+
+## 6. Game Constant Changes
+
+### 6.1 Resolution
+- GAME_WIDTH = 360
+- GAME_HEIGHT = 640
+
+### 6.2 Player
+- PLAYER_SIZE = 24 (was 30)
+- PLAYER_SPEED = 300 (slightly slower for precision)
+
+### 6.3 Bullets
+- BULLET_SIZE = 6 (was 8)
+- BULLET_SPEED = 500 (unchanged)
+- FIRE_COOLDOWN = 200 (unchanged)
+
+### 6.4 Enemies
+- ENEMY_SIZE = 32 (was 40)
+- ENEMY_SPEED = 100 (unchanged)
+- ENEMY_SPAWN_RATE = 2000 (unchanged)
+
+### 6.5 Touch Controls
+- DPAD_BUTTON_SIZE = 50
+- FIRE_BUTTON_SIZE = 60
+- BUTTON_OPACITY_INACTIVE = 0.4
+- BUTTON_OPACITY_ACTIVE = 0.8
+- AUTO_FIRE_HOLD_TIME = 2000 (2 seconds)
+
+---
+
+## 7. Implementation Steps
+
+### Phase 1: Foundation (Core Scaling)
+1. Update game constants (resolution, object sizes)
+2. Implement dynamic scaling in create()
+3. Update all hardcoded positions to proportional values
+4. Test on browser with various window sizes
+5. Verify gameplay feels balanced at new resolution
+
+### Phase 2: Touch Controls
+6. Create D-pad component in create()
+7. Create Fire button component in create()
+8. Wire D-pad buttons to player movement in update()
+9. Wire Fire button to shooting in create()
+10. Implement autofire toggle (2-second hold detection)
+11. Add visual feedback for button press states
+12. Test touch controls on actual mobile device
+
+### Phase 3: Settings Menu
+13. Create pause/resume helper functions
+14. Create Settings scene class
+15. Implement settings UI (toggle buttons, labels)
+16. Add localStorage save/load functions
+17. Wire settings to pause menu scene
+18. Apply settings on game reload
+19. Test settings persistence
+
+### Phase 4: Polish
+20. Add touch-action CSS to prevent scrolling
+21. Add user-scalable=no to viewport meta
+22. Test on iOS with Safari
+23. Verify landscape mode handling (block or rotate prompt)
+24. Performance testing on older devices
+
+---
+
+## 8. Testing Checklist
+
+### Desktop Testing
+- [ ] Game loads and runs
+- [ ] Keyboard controls work
+- [ ] Game scales properly when window resized
+- [ ] Mouse can click touch buttons (stand-in for touch)
+
+### Mobile Testing (iPhone)
+- [ ] Game loads on Safari
+- [ ] Touch controls responsive
+- [ ] D-pad position works both left and right
+- [ ] Autofire toggle works (2-second hold)
+- [ ] No page scrolling while playing
+- [ ] No zoom on double-tap
+- [ ] Performance acceptable (smooth 60fps)
+
+### Settings Testing
+- [ ] All settings toggle correctly
+- [ ] Settings save to localStorage
+- [ ] Settings load on game restart
+- [ ] Default values present if no saved settings
+
+---
+
+## Notes
+
+- Touch controls ON by default
+- Base resolution: 360x640
+- Vertical orientation only
+- Abilities deferred for now (timer/roulette style planned for future)
+
+---
+
+## Debugging Session Summary (2024-01-XX)
+
+### Initial Problem
+- Player moves smoothly with arrow keys/WASD ✅
+- Enemies spawn but don't move ❌
+- Bullets appear stationary at player position ❌
+- Collisions work (bullets destroy enemies on overlap) ✅
+
+### Root Cause Identified
+Both issues stem from the same problem:
+- **`setOrigin(0.5, 0.5)` is called BEFORE `physics.add.existing()`**
+- This breaks the physics body attachment in Phaser 3
+- Bodies get velocity but aren't integrated into physics simulation
+
+### What Was Tried (No Success)
+
+1. **Enhanced Logging** - Added categorized debug logs throughout code
+   - Confirmed velocity was being set correctly
+   - Objects still didn't move despite logs showing proper setup
+
+2. **Enemy Spawn Position** - Changed from `y = -32` to `y = 0`
+   - Enemies visible at top of screen, but still stationary
+
+3. **World Bounds Configuration** - Added `this.physics.world.setBounds()`
+   - No improvement
+
+4. **Force-Enable Physics Bodies** - Tried `bullet.body.enable(true)`
+   - Method doesn't exist in Arcade physics
+
+### Current Code State
+
+**`createFireBullet()`** (PROBLEMATIC):
+```javascript
+const bullet = this.add.rectangle(...);
+
+this.physics.add.existing(bullet);
+bullet.setOrigin(0.5, 0.5);  // ← This breaks physics
+bullet.body.setVelocity(0, -BULLET_SPEED);
+bullet.body.allowGravity = false;
+
+this.bullets.add(bullet);
+```
+
+**`spawnEnemy()`** (PROBLEMATIC):
+```javascript
+const enemy = this.add.rectangle(...);
+
+this.physics.add.existing(enemy);
+enemy.setOrigin(0.5, 0.5);  // ← This breaks physics
+enemy.body.setVelocity(0, ENEMY_SPEED);
+enemy.body.allowGravity = false;
+
+this.enemies.add(enemy);
+```
+
+**What Still Works:**
+- Player movement (uses similar pattern but works somehow)
+- Collision detection
+- Game loop and rendering
+
+### Important Discovery
+
+**Player uses same pattern but works:**
+```javascript
+this.player = this.add.rectangle(...);
+this.player.setOrigin(0.5, 0.5);  // Called BEFORE physics.add.existing()
+this.player.setDepth(10);
+this.physics.add.existing(this.player);
+this.player.body.setCollideWorldBounds(true);
+this.player.body.setMaxVelocity(PLAYER_SPEED, PLAYER_SPEED);
+```
+
+**Key Differences:**
+- Player created once in `create()`, bullets/enemies created repeatedly in `update()`
+- Player has `setMaxVelocity()` called
+- Player might complete setup before first `update()` call
+- Player body has different flags/settings
+
+### Hypotheses for Next Session
+
+1. **`setOrigin()` timing issue** - Need to test WITHOUT `setOrigin()` or move it AFTER physics body fully integrates
+
+2. **Physics body integration delay** - Might need `this.time.delayedCall(0, ...)` before setting velocity
+
+3. **Group vs direct reference** - Bullets/enemies in groups behave differently than player
+
+4. **Body flags** - `checkCollision`, `allowRotation`, `density`, `mass` settings might be interfering
+
+### Alternative Approaches to Try
+
+1. **Skip `setOrigin()` entirely** - Adjust x/y positions manually to center objects
+
+2. **Manual movement** - Bypass physics velocity, use tweens or direct `y -= speed*dt`
+
+3. **Check `this.physics.world.update()` or explicit physics step**
+
+4. **Try `this.physics.add.sprite()`** instead of `add.rectangle()` + `add.existing()`
+
+### Solution Found
+
+**The Correct Pattern for `physics.add.existing()` with dynamic objects:**
+
+1. Call `setOrigin()` BEFORE `physics.add.existing()` - this is actually correct!
+2. Add object to physics group BEFORE setting velocity
+
+```javascript
+createFireBullet() {
+    const bullet = this.add.rectangle(
+        this.player.x,
+        this.player.y - PLAYER_SIZE,
+        BULLET_SIZE,
+        BULLET_SIZE * 2,
+        COLOR_BULLET
+    );
+
+    bullet.setOrigin(0.5, 0.5);  // 1. Set origin first
+    bullet.setDepth(20);
+    this.physics.add.existing(bullet);  // 2. Add physics
+    this.bullets.add(bullet);  // 3. Add to group
+    
+    bullet.body.setVelocity(0, -BULLET_SPEED);  // 4. Then set velocity
+    bullet.body.allowGravity = false;
+}
+```
+
+**Root Cause:** The physics group (`this.bullets`) was somehow resetting or interfering with the velocity when the object was added to it. By setting velocity AFTER the object is added to the group, the velocity is properly applied and persists.
+
+**Key Takeaway:** The order matters:
+- `setOrigin()` → `physics.add.existing()` → `group.add()` → `body.setVelocity()`
+
+### Files Modified
+- `game.js` (multiple edits over debugging session)
+
+---

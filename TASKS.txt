@@ -1,0 +1,46 @@
+# Completed MVP Features
+
+- [x] Phaser.js game setup
+- [x] Player character (green square)
+- [x] Horizontal movement (left/right with arrows or A/D)
+- [x] Shooting projectiles (Space or W)
+- [x] Enemy spawning (red squares falling from top)
+- [x] Collision detection (bullets hit enemies, enemies hit player)
+- [x] Score system (+10 for kills, -5 for damage)
+- [x] Game over state (when score < -50)
+- [x] Placeholder graphics (no external assets)
+
+# Future Enhancement Tasks
+
+## Enemy Improvements
+- [ ] Multiple enemy types with different behaviors
+- [ ] Enemy bullet patterns (spiral, spread, tracking)
+- [ ] Enemy health bars
+- [ ] Enemy spawn waves/patterns
+- [ ] Boss enemies with unique mechanics
+
+## Player Improvements
+- [ ] Player health system with HP bar
+- [ ] Power-ups (rapid fire, spread shot, shields)
+- [ ] Player movement options (diagonal, speed boost)
+- [ ] Player invincibility frames
+
+## Game Systems
+- [ ] Score multipliers and combo system
+- [ ] Lives/continue system
+- [ ] Level progression with increasing difficulty
+- [ ] High score tracking (localStorage)
+- [ ] Pause menu
+
+## Visual Improvements
+- [ ] Particle effects on explosions
+- [ ] Screen shake on player hit
+- [ ] Background scrolling/parallax
+- [ ] Better graphics (sprite sheets, pixel art)
+- [ ] UI improvements (health bar, weapon display)
+
+## Polish
+- [ ] Sound effects (shooting, explosions)
+- [ ] Background music
+- [ ] Game over screen improvements
+- [ ] Tutorial/intro screen

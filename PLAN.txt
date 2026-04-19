@@ -1,0 +1,99 @@
+# Vertical Bullet Hell Game - Architecture Plan
+
+## Game Engine: Phaser.js 3.60.0
+- MIT license (free for personal and commercial use)
+- Loaded via CDN from jsdelivr
+- No build step required
+
+## Current MVP Implementation
+
+### File Structure
+index.html
+└── Loads Phaser.js from CDN
+└── Loads game.js
+└── Minimal CSS for centering
+
+game.js
+└── All game logic in single file for simplicity
+
+### Game Dimensions
+- Canvas: 480x720 pixels (vertical orientation)
+- Background: Dark (#000011)
+
+### Player System
+- Size: 30x30 pixels
+- Color: Green (#00ff00)
+- Position: Centered at bottom (y = GAME_HEIGHT - 80)
+- Movement: Horizontal only, max 350px/s
+- Collision: Arcade physics, world bounds
+
+### Bullet System
+- Size: 8x8 pixels
+- Color: Yellow (#ffff00)
+- Speed: 500px/s upward
+- Fire Rate: 200ms cooldown
+- Managed via Phaser.Physics.Arcade.Group
+
+### Enemy System
+- Size: 40x40 pixels
+- Color: Red (#ff0000)
+- Spawn Rate: Every 2000ms
+- Spawn Position: Random x, above screen
+- Speed: 100px/s downward
+- Managed via Phaser.Physics.Arcade.Group
+
+### Collision Handlers
+- BULLET + ENEMY: Destroy both, +10 score
+- PLAYER + ENEMY: Destroy enemy, -5 score, flash warning
+- Game Over: When score < -50, pause physics
+
+### Game State Management
+- Score: Integer variable, displayed via Phaser.Text
+- No separate game states (single scene)
+- Game over = physics.pause() + overlay text
+
+### Input Handling
+- Phaser.CURSOR_KEYS (arrows)
+- WASD keys (alternative)
+- Space bar for shooting (also W key)
+
+## Architecture Design Choices
+
+### Why Single File (game.js)?
+- MVP simplicity
+- Easy to understand/modify
+- No bundler complexity
+- Can be split later if needed
+
+### Why Arcade Physics?
+- Simple collision detection
+- Good for top-down shooters
+- Built-in velocity/position management
+
+### Why No Asset Loading?
+- Use generated graphics for MVP
+- Faster prototyping
+- No 404 issues during development
+- Can add real sprites later
+
+### Memory Management
+- Bullets/enemies destroyed when off-screen
+- Phaser handles garbage collection
+- Group management for all dynamic objects
+
+## Future Expansion Points
+
+To improve this architecture:
+1. Split game.js into modules (Player, Enemy, Bullet, Game)
+2. Create separate scenes (MainMenu, Game, GameOver)
+3. Add configuration file for game constants
+4. Implement state management with Phaser.Scene
+5. Use object pooling for performance
+6. Add asset loading with preload()
+
+## Key Constants to Tweak
+- PLAYER_SPEED: Movement velocity
+- BULLET_SPEED: Projectile velocity
+- ENEMY_SPEED: Enemy fall velocity
+- ENEMY_SPAWN_RATE: Spawn timing
+- Bullet fire cooldown in update()
