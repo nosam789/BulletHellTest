@@ -10,7 +10,7 @@ const ENEMY_SPAWN_RATE = 2000;
 const FIRE_COOLDOWN = 200;
 const COLOR_PLAYER = 0x00ff00;
 const COLOR_BULLET = 0xffff00;
-const COLOR_ENEMY = 0xff0000;
+const COLOR_ENEMY = 0x0000ff;
 const COLOR_BG = 0x000011;
 
 class MainScene extends Phaser.Scene {
@@ -55,6 +55,14 @@ class MainScene extends Phaser.Scene {
             right: Phaser.Input.Keyboard.KeyCodes.D
         });
         
+        // Set up touch controls
+        this.touchTarget = null;
+        this.isTouching = false;
+        this.input.on('pointerdown', this.handleTouchStart, this);
+        this.input.on('pointermove', this.handleTouchMove, this);
+        this.input.on('pointerup', this.handleTouchEnd, this);
+        this.input.on('pointerout', this.handleTouchEnd, this);
+        
         // Set up collisions
         this.physics.add.overlap(this.bullets, this.enemies, this.hitEnemy, null, this);
         this.physics.add.overlap(this.player, this.enemies, this.hitPlayer, null, this);
@@ -66,12 +74,12 @@ class MainScene extends Phaser.Scene {
         this.lastFired = 0;
         this.lastSpawned = 0;
         
-        console.log('[INIT] Game started. Press SPACE to shoot.');
+        console.log('[INIT] Game started. Touch to move, auto-fire enabled.');
     }
 
-    update() {
+    update(time) {
         this.handleMovement();
-        this.handleShooting();
+        this.handleAutoFire(time);
         this.handleSpawning();
         this.cleanupOffScreen();
     }
@@ -92,6 +100,18 @@ class MainScene extends Phaser.Scene {
         if (this.wasd.up.isDown) vy -= 1;
         if (this.wasd.down.isDown) vy += 1;
         
+        // Touch movement (overrides keyboard if active)
+        if (this.isTouching && this.touchTarget) {
+            const dx = this.touchTarget.x - this.player.x;
+            const dy = this.touchTarget.y - this.player.y;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            
+            if (dist > 0) {
+                vx = dx / dist;
+                vy = dy / dist;
+            }
+        }
+        
         // Normalize diagonal movement
         if (vx !== 0 && vy !== 0) {
             const length = Math.sqrt(vx * vx + vy * vy);
@@ -102,13 +122,10 @@ class MainScene extends Phaser.Scene {
         this.player.body.setVelocity(vx * PLAYER_SPEED, vy * PLAYER_SPEED);
     }
 
-    handleShooting() {
-        const spaceDown = this.cursors.space.isDown;
-        const elapsed = this.time.now - this.lastFired;
-        
-        if (spaceDown && elapsed > FIRE_COOLDOWN) {
+    handleAutoFire(time) {
+        if ((time - this.lastFired) > FIRE_COOLDOWN) {
             this.createFireBullet();
-            this.lastFired = this.time.now;
+            this.lastFired = time;
         }
     }
 
@@ -174,6 +191,23 @@ class MainScene extends Phaser.Scene {
                 enemy.destroy();
             }
         });
+    }
+
+    handleTouchStart(pointer) {
+        this.isTouching = true;
+        this.touchTarget = { x: pointer.x, y: pointer.y };
+    }
+
+    handleTouchMove(pointer) {
+        if (this.isTouching) {
+            this.touchTarget.x = pointer.x;
+            this.touchTarget.y = pointer.y;
+        }
+    }
+
+    handleTouchEnd(pointer) {
+        this.isTouching = false;
+        this.touchTarget = null;
     }
 
     hitEnemy(bullet, enemy) {
