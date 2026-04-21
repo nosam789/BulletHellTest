@@ -4,9 +4,11 @@ const PLAYER_SIZE = 24;
 const PLAYER_SPEED = 300;
 const BULLET_SIZE = 6;
 const BULLET_SPEED = 500;
+const BULLET_DAMAGE = 60;
 const ENEMY_SIZE = 32;
-const ENEMY_SPEED = 100;
-const ENEMY_SPAWN_RATE = 2000;
+const ENEMY_SPEED = 200;
+const ENEMY_SPAWN_RATE = 667;
+const ENEMY_HEALTH = 100;
 const FIRE_COOLDOWN = 200;
 const COLOR_PLAYER = 0x00ff00;
 const COLOR_BULLET = 0xffff00;
@@ -55,16 +57,17 @@ class MainScene extends Phaser.Scene {
             right: Phaser.Input.Keyboard.KeyCodes.D
         });
         
-        // Set up touch controls
-        this.touchTarget = null;
+        // Set up direct touch controls (1:1 mapping)
         this.isTouching = false;
+        this.touchHome = null;
+        this.playerHome = null;
         this.input.on('pointerdown', this.handleTouchStart, this);
         this.input.on('pointermove', this.handleTouchMove, this);
         this.input.on('pointerup', this.handleTouchEnd, this);
         this.input.on('pointerout', this.handleTouchEnd, this);
         
         // Set up collisions
-        this.physics.add.overlap(this.bullets, this.enemies, this.hitEnemy, null, this);
+        this.physics.add.collider(this.bullets, this.enemies, this.hitEnemy, null, this);
         this.physics.add.overlap(this.player, this.enemies, this.hitPlayer, null, this);
         
         // Set physics world bounds
@@ -99,18 +102,6 @@ class MainScene extends Phaser.Scene {
         if (this.wasd.right.isDown) vx += 1;
         if (this.wasd.up.isDown) vy -= 1;
         if (this.wasd.down.isDown) vy += 1;
-        
-        // Touch movement (overrides keyboard if active)
-        if (this.isTouching && this.touchTarget) {
-            const dx = this.touchTarget.x - this.player.x;
-            const dy = this.touchTarget.y - this.player.y;
-            const dist = Math.sqrt(dx * dx + dy * dy);
-            
-            if (dist > 0) {
-                vx = dx / dist;
-                vy = dy / dist;
-            }
-        }
         
         // Normalize diagonal movement
         if (vx !== 0 && vy !== 0) {
@@ -175,6 +166,9 @@ class MainScene extends Phaser.Scene {
         
         enemy.body.setVelocity(0, ENEMY_SPEED);
         enemy.body.allowGravity = false;
+        
+        enemy.health = ENEMY_HEALTH;
+        enemy.hitBulletIds = new Set();
     }
 
     cleanupOffScreen() {
@@ -195,26 +189,48 @@ class MainScene extends Phaser.Scene {
 
     handleTouchStart(pointer) {
         this.isTouching = true;
-        this.touchTarget = { x: pointer.x, y: pointer.y };
+        this.touchHome = { x: pointer.x, y: pointer.y };
+        this.playerHome = { x: this.player.x, y: this.player.y };
     }
 
     handleTouchMove(pointer) {
-        if (this.isTouching) {
-            this.touchTarget.x = pointer.x;
-            this.touchTarget.y = pointer.y;
+        if (this.isTouching && this.touchHome && this.playerHome) {
+            const dx = pointer.x - this.touchHome.x;
+            const dy = pointer.y - this.touchHome.y;
+            
+            this.player.x = Phaser.Math.Clamp(
+                this.playerHome.x + dx,
+                PLAYER_SIZE / 2,
+                BASE_WIDTH - PLAYER_SIZE / 2
+            );
+            this.player.y = Phaser.Math.Clamp(
+                this.playerHome.y + dy,
+                PLAYER_SIZE / 2,
+                BASE_HEIGHT - PLAYER_SIZE / 2
+            );
         }
     }
 
     handleTouchEnd(pointer) {
         this.isTouching = false;
-        this.touchTarget = null;
+        this.touchHome = null;
+        this.playerHome = null;
     }
 
     hitEnemy(bullet, enemy) {
-        bullet.destroy();
-        enemy.destroy();
-        this.score += 10;
-        this.scoreText.setText('Score: ' + this.score);
+        if (enemy.hitBulletIds.has(bullet.id)) return;
+        enemy.hitBulletIds.add(bullet.id);
+        
+        enemy.health -= BULLET_DAMAGE;
+        
+        if (enemy.health <= 0) {
+            enemy.destroy();
+            if (!bullet.isDestroyed) {
+                bullet.destroy();
+            }
+            this.score += 10;
+            this.scoreText.setText('Score: ' + this.score);
+        }
     }
 
     hitPlayer(player, enemy) {
