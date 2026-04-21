@@ -57,14 +57,15 @@ class MainScene extends Phaser.Scene {
             right: Phaser.Input.Keyboard.KeyCodes.D
         });
         
-        // Set up direct touch controls (1:1 mapping)
-        this.isTouching = false;
+        // Set up direct touch controls (1:1 mapping with pointer ID tracking)
+        this.activePointerId = null;
         this.touchHome = null;
         this.playerHome = null;
         this.input.on('pointerdown', this.handleTouchStart, this);
         this.input.on('pointermove', this.handleTouchMove, this);
         this.input.on('pointerup', this.handleTouchEnd, this);
         this.input.on('pointerout', this.handleTouchEnd, this);
+        this.input.on('pointerupoutside', this.handleTouchEnd, this);
         
         // Set up collisions
         this.physics.add.collider(this.bullets, this.enemies, this.hitEnemy, null, this);
@@ -187,33 +188,47 @@ class MainScene extends Phaser.Scene {
     }
 
     handleTouchStart(pointer) {
-        this.isTouching = true;
+        this.activePointerId = pointer.identifier;
         this.touchHome = { x: pointer.x, y: pointer.y };
         this.playerHome = { x: this.player.x, y: this.player.y };
+        
+        console.log(`[TOUCH] Pointer ${pointer.identifier} is now active`);
     }
 
     handleTouchMove(pointer) {
-        if (this.isTouching && this.touchHome && this.playerHome) {
-            const dx = pointer.x - this.touchHome.x;
-            const dy = pointer.y - this.touchHome.y;
-            
-            this.player.x = Phaser.Math.Clamp(
-                this.playerHome.x + dx,
-                PLAYER_SIZE / 2,
-                BASE_WIDTH - PLAYER_SIZE / 2
-            );
-            this.player.y = Phaser.Math.Clamp(
-                this.playerHome.y + dy,
-                PLAYER_SIZE / 2,
-                BASE_HEIGHT - PLAYER_SIZE / 2
-            );
+        if (pointer.identifier !== this.activePointerId) {
+            return;
         }
+        
+        if (!this.touchHome || !this.playerHome) {
+            return;
+        }
+        
+        const dx = pointer.x - this.touchHome.x;
+        const dy = pointer.y - this.touchHome.y;
+        
+        this.player.x = Phaser.Math.Clamp(
+            this.playerHome.x + dx,
+            PLAYER_SIZE / 2,
+            BASE_WIDTH - PLAYER_SIZE / 2
+        );
+        this.player.y = Phaser.Math.Clamp(
+            this.playerHome.y + dy,
+            PLAYER_SIZE / 2,
+            BASE_HEIGHT - PLAYER_SIZE / 2
+        );
     }
 
     handleTouchEnd(pointer) {
-        this.isTouching = false;
+        if (pointer.identifier !== this.activePointerId) {
+            return;
+        }
+        
+        this.activePointerId = null;
         this.touchHome = null;
         this.playerHome = null;
+        
+        console.log(`[TOUCH] Pointer ${pointer.identifier} released`);
     }
 
     hitEnemy(bullet, enemy) {
