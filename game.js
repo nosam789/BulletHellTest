@@ -168,7 +168,6 @@ class MainScene extends Phaser.Scene {
         enemy.body.allowGravity = false;
         
         enemy.health = ENEMY_HEALTH;
-        enemy.hitBulletIds = new Set();
     }
 
     cleanupOffScreen() {
@@ -218,18 +217,21 @@ class MainScene extends Phaser.Scene {
     }
 
     hitEnemy(bullet, enemy) {
-        if (enemy.hitBulletIds.has(bullet.id)) return;
-        enemy.hitBulletIds.add(bullet.id);
+        if (enemy.isDestroyed || bullet.isDestroyed) return;
         
         enemy.health -= BULLET_DAMAGE;
         
+        if (!bullet.isDestroyed) {
+            bullet.destroy();
+        }
+        
         if (enemy.health <= 0) {
             enemy.destroy();
-            if (!bullet.isDestroyed) {
-                bullet.destroy();
-            }
             this.score += 10;
             this.scoreText.setText('Score: ' + this.score);
+        } else {
+            const randomColor = Phaser.Math.Between(0, 0xFFFFFF);
+            enemy.setFillStyle(randomColor);
         }
     }
 
