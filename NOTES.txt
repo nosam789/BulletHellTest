@@ -1,415 +1,688 @@
-# Mobile-First Bullet Hell Implementation Plan
+# Multi-Touch Bug Investigation
 
-## Overview
+## Current State (2026-04-21)
 
-This document outlines the conversion of the MVP bullet hell game from a PC-focused keyboard game to a mobile-first experience optimized for iPhone, with secondary support for Android and PC. The game will maintain its vertical-only orientation across all platforms.
-
----
-
-## 1. Resolution & Scaling
-
-### 1.1 Base Resolution
-- Change from 480x720 to **360x640**
-- Covers minimum iPhone SE resolution when scaled
-- Maintains vertical portrait aspect ratio (~9:16)
-
-### 1.2 Scaling Strategy
-- Dynamically scale game canvas to fit window height
-- Maintain aspect ratio (horizontal letterboxing if needed)
-- Use Phaser's camera scaling with CSS for crisp rendering
-- Handle device pixel ratio for Retina displays
-
-### 1.3 Object Size Adjustments
-- Player: Reduce from 30x30 to ~24x24
-- Bullets: Reduce from 8x8 to ~6x6
-- Enemies: Reduce from 40x40 to ~32x32
-- Scale proportionally to 360x640 base
-
-### 1.4 UI Positioning
-- Convert hardcoded pixel positions to proportional values
-- Use `game.scale.width * percentage` for horizontal positioning
-- Use `game.scale.height * percentage` for vertical positioning
+Game is functional with single-touch controls working well. Implemented pointer ID tracking for seamless finger handoff, but **multi-touch is not working on iPhone**.
 
 ---
 
-## 2. Touch Control System
+## Bug Report
 
-### 2.1 D-Pad Component
+**Issue:** Second finger not recognized during multi-touch
 
-**Layout:**
-- Four directional buttons arranged in cross pattern inside circular square
-- Each button is a translucent circle (~50px diameter)
-- Buttons: Up, Down, Left, Right positioned in classic D-pad formation
+**Symptoms:**
+- ✅ First finger works perfectly (player moves with touch)
+- ❌ Second finger completely ignored (no movement response)
+- ❌ Lifting first finger while second is down does NOT activate second finger
+- ❌ Only works when ALL fingers lifted, then one finger touches again
 
-**Position:**
-- Default: Lower right side of screen
-- Distance from edge: ~30px
-- Center of D-pad at approximately (x: 90% of screen width, y: 90% of screen height)
+**Expected Behavior:**
+- Second finger should immediately take control when touched
+- Lifting first finger should maintain control with second finger
+- Seamless handoff between fingers
 
-**Behavior:**
-- Each button sets player velocity in that direction
-- Release button player stops in that axis (allows combined movement)
-- Multi-touch support: Can move diagonally by holding two buttons
-- Visual feedback: Active state (brighter) when pressed
-
-**Style:**
-- 40% opacity when inactive
-- 80% opacity when active (pressed)
-- Circular shape with visible border
-- Background: Dark color with lighter border
-
-### 2.2 Fire Button Component
-
-**Position:**
-- Left side of screen, vertically centered in bottom third
-- Approximately (x: 15% of screen width, y: 85% of screen height)
-
-**Behavior:**
-- Tap Single bullet fired
-- Hold 2 seconds Toggles autofire on/off
-- Autofire on Continuous bullets at fire rate
-- Autofire off Tap-to-fire only
-
-**Style:**
-- Circular button, larger than D-pad buttons (~60px diameter)
-- 40% opacity translucent
-- Red or orange color to indicate "danger/action"
-- 80% opacity when pressed
-
-### 2.3 Movement Logic
-
-**Keyboard (existing, retained):**
-- Arrow keys or WASD Horizontal movement only
-- Space or W Fire
-
-**Touch (new):**
-- D-pad buttons Full 4-directional movement (up/down/left/right)
-- Fire button Tap or autofire behavior
-
-**Hybrid:**
-- Both input methods work simultaneously
-- Touch overrides keyboard for movement
-- Fire button works alongside keyboard spacebar
+**Tested On:** iPhone (iOS Safari)
 
 ---
 
-## 3. Settings Menu
+## Current Implementation
 
-### 3.1 Menu Scene Type
-- New scene that pauses the main game scene
-- Overlay on top of paused gameplay
-- Black semi-transparent background
-
-### 3.2 Menu Options
-
-**D-Pad Position:**
-- Left side (for right-handed players)
-- Right side (default, for left-handed players)
-
-**Touch Controls Visibility:**
-- Always visible
-- Hidden (touch zones only)
-- Invisible mode (no controls visible, requires memorized positions)
-
-**Enable Touch Controls:**
-- ON (uses touch + pointer)
-- OFF (keyboard/mouse only)
-
-**Autofire Default:**
-- Start game with autofire ON
-- Start game with autofire OFF
-
-### 3.3 Menu UI Components
-- Title: "Settings" at top
-- Toggle switches or buttons for each option
-- "Back" button to return to game
-- "Main Menu" button (future implementation)
-
-### 3.4 Data Persistence
-- Save all settings to localStorage
-- Load settings on game startup
-- Apply settings before creating game objects
-
----
-
-## 4. Pause System
-
-### 4.1 Pause Triggers
-- Settings menu open Pause game
-- Future: Pause button tap Pause game
-
-### 4.2 Pause Behavior
-- this.physics.pause() stops all physics
-- this.scene.pause() stops update loop
-- Game state preserved (score, player position, etc.)
-
-### 4.3 Resume Behavior
-- this.physics.resume() when unpause
-- this.scene.resume() restores update loop
-- Time delta handled automatically by Phaser
-
----
-
-## 5. File Structure Changes
-
-### 5.1 Modified Files
-
-**game.js:**
-- Update all constants for new resolution
-- Add touch control creation in create()
-- Add touch control update in update()
-- Add pause/resume methods
-- Add settings loading/saving
-
-**index.html:**
-- Update viewport meta tag for mobile
-- Add CSS for full-height canvas
-- Add CSS for touch-action to prevent scrolling
-
-### 5.2 New Files (Future)
-
-**settings.js:**
-- Separate file for settings management
-- LocalStorage helper functions
-- Default values
-
-**touch-controls.js:**
-- D-pad component class
-- Fire button component class
-- Touch event handlers
-
----
-
-## 6. Game Constant Changes
-
-### 6.1 Resolution
-- GAME_WIDTH = 360
-- GAME_HEIGHT = 640
-
-### 6.2 Player
-- PLAYER_SIZE = 24 (was 30)
-- PLAYER_SPEED = 300 (slightly slower for precision)
-
-### 6.3 Bullets
-- BULLET_SIZE = 6 (was 8)
-- BULLET_SPEED = 500 (unchanged)
-- FIRE_COOLDOWN = 200 (unchanged)
-
-### 6.4 Enemies
-- ENEMY_SIZE = 32 (was 40)
-- ENEMY_SPEED = 100 (unchanged)
-- ENEMY_SPAWN_RATE = 2000 (unchanged)
-
-### 6.5 Touch Controls
-- DPAD_BUTTON_SIZE = 50
-- FIRE_BUTTON_SIZE = 60
-- BUTTON_OPACITY_INACTIVE = 0.4
-- BUTTON_OPACITY_ACTIVE = 0.8
-- AUTO_FIRE_HOLD_TIME = 2000 (2 seconds)
-
----
-
-## 7. Implementation Steps
-
-### Phase 1: Foundation (Core Scaling)
-1. Update game constants (resolution, object sizes)
-2. Implement dynamic scaling in create()
-3. Update all hardcoded positions to proportional values
-4. Test on browser with various window sizes
-5. Verify gameplay feels balanced at new resolution
-
-### Phase 2: Touch Controls
-6. Create D-pad component in create()
-7. Create Fire button component in create()
-8. Wire D-pad buttons to player movement in update()
-9. Wire Fire button to shooting in create()
-10. Implement autofire toggle (2-second hold detection)
-11. Add visual feedback for button press states
-12. Test touch controls on actual mobile device
-
-### Phase 3: Settings Menu
-13. Create pause/resume helper functions
-14. Create Settings scene class
-15. Implement settings UI (toggle buttons, labels)
-16. Add localStorage save/load functions
-17. Wire settings to pause menu scene
-18. Apply settings on game reload
-19. Test settings persistence
-
-### Phase 4: Polish
-20. Add touch-action CSS to prevent scrolling
-21. Add user-scalable=no to viewport meta
-22. Test on iOS with Safari
-23. Verify landscape mode handling (block or rotate prompt)
-24. Performance testing on older devices
-
----
-
-## 8. Testing Checklist
-
-### Desktop Testing
-- [ ] Game loads and runs
-- [ ] Keyboard controls work
-- [ ] Game scales properly when window resized
-- [ ] Mouse can click touch buttons (stand-in for touch)
-
-### Mobile Testing (iPhone)
-- [ ] Game loads on Safari
-- [ ] Touch controls responsive
-- [ ] D-pad position works both left and right
-- [ ] Autofire toggle works (2-second hold)
-- [ ] No page scrolling while playing
-- [ ] No zoom on double-tap
-- [ ] Performance acceptable (smooth 60fps)
-
-### Settings Testing
-- [ ] All settings toggle correctly
-- [ ] Settings save to localStorage
-- [ ] Settings load on game restart
-- [ ] Default values present if no saved settings
-
----
-
-## Notes
-
-- Touch controls ON by default
-- Base resolution: 360x640
-- Vertical orientation only
-- Abilities deferred for now (timer/roulette style planned for future)
-
----
-
-## Debugging Session Summary (2024-01-XX)
-
-### Initial Problem
-- Player moves smoothly with arrow keys/WASD ✅
-- Enemies spawn but don't move ❌
-- Bullets appear stationary at player position ❌
-- Collisions work (bullets destroy enemies on overlap) ✅
-
-### Root Cause Identified
-Both issues stem from the same problem:
-- **`setOrigin(0.5, 0.5)` is called BEFORE `physics.add.existing()`**
-- This breaks the physics body attachment in Phaser 3
-- Bodies get velocity but aren't integrated into physics simulation
-
-### What Was Tried (No Success)
-
-1. **Enhanced Logging** - Added categorized debug logs throughout code
-   - Confirmed velocity was being set correctly
-   - Objects still didn't move despite logs showing proper setup
-
-2. **Enemy Spawn Position** - Changed from `y = -32` to `y = 0`
-   - Enemies visible at top of screen, but still stationary
-
-3. **World Bounds Configuration** - Added `this.physics.world.setBounds()`
-   - No improvement
-
-4. **Force-Enable Physics Bodies** - Tried `bullet.body.enable(true)`
-   - Method doesn't exist in Arcade physics
-
-### Current Code State
-
-**`createFireBullet()`** (PROBLEMATIC):
+### State Variables (in `create()`):
 ```javascript
-const bullet = this.add.rectangle(...);
-
-this.physics.add.existing(bullet);
-bullet.setOrigin(0.5, 0.5);  // ← This breaks physics
-bullet.body.setVelocity(0, -BULLET_SPEED);
-bullet.body.allowGravity = false;
-
-this.bullets.add(bullet);
+this.activePointerId = null;
+this.touchHome = null;
+this.playerHome = null;
 ```
 
-**`spawnEnemy()`** (PROBLEMATIC):
+### Event Handlers:
 ```javascript
-const enemy = this.add.rectangle(...);
-
-this.physics.add.existing(enemy);
-enemy.setOrigin(0.5, 0.5);  // ← This breaks physics
-enemy.body.setVelocity(0, ENEMY_SPEED);
-enemy.body.allowGravity = false;
-
-this.enemies.add(enemy);
+this.input.on('pointerdown', this.handleTouchStart, this);
+this.input.on('pointermove', this.handleTouchMove, this);
+this.input.on('pointerup', this.handleTouchEnd, this);
+this.input.on('pointerout', this.handleTouchEnd, this);
+this.input.on('pointerupoutside', this.handleTouchEnd, this);
 ```
 
-**What Still Works:**
-- Player movement (uses similar pattern but works somehow)
-- Collision detection
-- Game loop and rendering
-
-### Important Discovery
-
-**Player uses same pattern but works:**
+### `handleTouchStart(pointer)`:
 ```javascript
-this.player = this.add.rectangle(...);
-this.player.setOrigin(0.5, 0.5);  // Called BEFORE physics.add.existing()
-this.player.setDepth(10);
-this.physics.add.existing(this.player);
-this.player.body.setCollideWorldBounds(true);
-this.player.body.setMaxVelocity(PLAYER_SPEED, PLAYER_SPEED);
+this.activePointerId = pointer.identifier;
+this.touchHome = { x: pointer.x, y: pointer.y };
+this.playerHome = { x: this.player.x, y: this.player.y };
 ```
 
-**Key Differences:**
-- Player created once in `create()`, bullets/enemies created repeatedly in `update()`
-- Player has `setMaxVelocity()` called
-- Player might complete setup before first `update()` call
-- Player body has different flags/settings
-
-### Hypotheses for Next Session
-
-1. **`setOrigin()` timing issue** - Need to test WITHOUT `setOrigin()` or move it AFTER physics body fully integrates
-
-2. **Physics body integration delay** - Might need `this.time.delayedCall(0, ...)` before setting velocity
-
-3. **Group vs direct reference** - Bullets/enemies in groups behave differently than player
-
-4. **Body flags** - `checkCollision`, `allowRotation`, `density`, `mass` settings might be interfering
-
-### Alternative Approaches to Try
-
-1. **Skip `setOrigin()` entirely** - Adjust x/y positions manually to center objects
-
-2. **Manual movement** - Bypass physics velocity, use tweens or direct `y -= speed*dt`
-
-3. **Check `this.physics.world.update()` or explicit physics step**
-
-4. **Try `this.physics.add.sprite()`** instead of `add.rectangle()` + `add.existing()`
-
-### Solution Found
-
-**The Correct Pattern for `physics.add.existing()` with dynamic objects:**
-
-1. Call `setOrigin()` BEFORE `physics.add.existing()` - this is actually correct!
-2. Add object to physics group BEFORE setting velocity
-
+### `handleTouchMove(pointer)`:
 ```javascript
-createFireBullet() {
-    const bullet = this.add.rectangle(
-        this.player.x,
-        this.player.y - PLAYER_SIZE,
-        BULLET_SIZE,
-        BULLET_SIZE * 2,
-        COLOR_BULLET
-    );
+if (pointer.identifier !== this.activePointerId) {
+    return;
+}
+// ... apply movement
+```
 
-    bullet.setOrigin(0.5, 0.5);  // 1. Set origin first
-    bullet.setDepth(20);
-    this.physics.add.existing(bullet);  // 2. Add physics
-    this.bullets.add(bullet);  // 3. Add to group
-    
-    bullet.body.setVelocity(0, -BULLET_SPEED);  // 4. Then set velocity
-    bullet.body.allowGravity = false;
+### `handleTouchEnd(pointer)`:
+```javascript
+if (pointer.identifier !== this.activePointerId) {
+    return;
+}
+this.activePointerId = null;
+this.touchHome = null;
+this.playerHome = null;
+```
+
+---
+
+## Hypotheses for Multi-Touch Failure
+
+### Hypothesis 1: iOS Touch Action Interference
+**Theory:** iOS Safari might be preventing multi-touch events due to CSS/browser defaults
+
+**Possible Causes:**
+- `touch-action` CSS property set to `none` or `manipulation`
+- `e.preventDefault()` needed on pointer events
+- Phaser's input system blocking secondary touches
+
+**Test Steps:**
+1. Add `e.preventDefault()` in `handleTouchStart`
+2. Check CSS for `.phaser-game` or canvas element
+3. Try adding `touch-action: none` to canvas CSS explicitly
+
+**Code to Try:**
+```javascript
+handleTouchStart(pointer, event) {
+    event.preventDefault(); // ← Add this
+    this.activePointerId = pointer.identifier;
+    // ...
 }
 ```
 
-**Root Cause:** The physics group (`this.bullets`) was somehow resetting or interfering with the velocity when the object was added to it. By setting velocity AFTER the object is added to the group, the velocity is properly applied and persists.
+---
 
-**Key Takeaway:** The order matters:
-- `setOrigin()` → `physics.add.existing()` → `group.add()` → `body.setVelocity()`
+### Hypothesis 2: Phaser Input Config Missing Multi-Touch Settings
+**Theory:** Phaser 3's input system needs explicit configuration for multi-touch support
 
-### Files Modified
-- `game.js` (multiple edits over debugging session)
+**Possible Causes:**
+- Default Phaser config restricts to single pointer
+- Need to enable `pointerLock: false` or `multipointer: true`
+- Input plugin not initialized with multi-touch support
+
+**Test Steps:**
+1. Check Phaser configuration in `index.html` or `game.js`
+2. Try adding multi-touch settings to Phaser.Game config
+
+**Code to Try:**
+```javascript
+// In main Game config (index.html or main.js)
+const config = {
+    type: Phaser.AUTO,
+    // ... other settings
+    input: {
+        mouse: {},
+        touch: {
+            pointercapture: false, // ← Try this
+            preventDefault: true   // ← Try this
+        },
+        keyboard: {}
+    }
+};
+```
 
 ---
+
+### Hypothesis 3: Pointer ID Collision or Reset
+**Theory:** iOS might reuse pointer IDs or reset them unexpectedly
+
+**Possible Causes:**
+- `pointer.identifier` values not unique across sessions
+- `activePointerId` check too strict
+- Second pointer has same ID as first (unlikely but possible)
+
+**Test Steps:**
+1. Add extensive logging to see actual pointer IDs:
+```javascript
+handleTouchStart(pointer) {
+    console.log(`[POINTER DOWN] ID: ${pointer.identifier}, isPrimary: ${pointer.isPrimary}`);
+    console.log(`Current active: ${this.activePointerId}`);
+    // ...
+}
+
+handleTouchMove(pointer) {
+    console.log(`[POINTER MOVE] ID: ${pointer.identifier}, active: ${this.activePointerId}`);
+    if (pointer.identifier !== this.activePointerId) {
+        console.log(`REJECTED: ID mismatch`);
+        return;
+    }
+    // ...
+}
+```
+
+2. Check if `pointer.isPrimary` is true (iOS might only send primary pointer events)
+
+---
+
+### Hypothesis 4: Browser/Device Blocks Non-Primary Pointers
+**Theory:** iOS Safari only sends events for `isPrimary: true` pointer by default
+
+**Possible Causes:**
+- Browser blocks non-primary touch points unless explicitly handled
+- Need to use `pointer.isPrimary` check instead of ID matching
+- iOS limits simultaneous pointers to 1 for canvas elements
+
+**Test Steps:**
+1. Check `pointer.isPrimary` property in logs
+2. Try accepting ALL pointers, not just matching ID
+
+**Code to Try:**
+```javascript
+handleTouchStart(pointer) {
+    // Accept any pointer, don't track ID
+    console.log(`[${pointer.identifier}] isPrimary: ${pointer.isPrimary}`);
+    this.touchHome = { x: pointer.x, y: pointer.y };
+    this.playerHome = { x: this.player.x, y: this.player.y };
+    this.activePointerId = pointer.identifier; // Still track for cleanup
+}
+
+handleTouchMove(pointer) {
+    // Accept ANY pointer move, don't check ID
+    if (!this.touchHome || !this.playerHome) return;
+    // ... apply movement
+}
+
+handleTouchEnd(pointer) {
+    // Only clear if this pointer is active
+    if (pointer.identifier === this.activePointerId) {
+        this.activePointerId = null;
+        this.touchHome = null;
+        this.playerHome = null;
+    }
+}
+```
+
+---
+
+### Hypothesis 5: CSS Touch Handling Conflicts
+**Theory:** CSS might be intercepting or blocking multi-touch events
+
+**Possible Causes:**
+- `user-select: none` or `-webkit-user-select: none` blocking
+- `touch-action` CSS property issues
+- Canvas CSS preventing multi-touch
+
+**Test Steps:**
+1. Check `index.html` for CSS on canvas or game container
+2. Try adding explicit multi-touch CSS:
+
+```css
+canvas {
+    touch-action: none;
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
+    -khtml-user-select: none;
+    -ms-user-select: none;
+}
+```
+
+3. Check if parent containers have conflicting touch CSS
+
+---
+
+### Hypothesis 6: Phaser Event Handler Binding Issues
+**Theory:** Phaser might be de-duplicating or filtering pointer events
+
+**Possible Causes:**
+- Event handlers not bound with correct context (`this`)
+- Phaser internally filtering duplicate pointer events
+- Event listener priority conflicts
+
+**Test Steps:**
+1. Try using anonymous functions instead of bound methods:
+```javascript
+this.input.on('pointerdown', function(pointer) {
+    this.activePointerId = pointer.identifier;
+    // ...
+}, this);
+```
+
+2. Check if `pointer.move` vs `pointerdown` timing matters
+
+---
+
+## Debug Plan for Next Session
+
+### Step 1: Extensive Logging (Highest Priority)
+Add comprehensive console logging to understand what iOS is actually sending:
+
+```javascript
+handleTouchStart(pointer, event) {
+    console.group(`[TOUCH START]`);
+    console.log('Pointer ID:', pointer.identifier);
+    console.log('Is Primary:', pointer.isPrimary);
+    console.log('Position:', pointer.x, pointer.y);
+    console.log('Active Pointer ID:', this.activePointerId);
+    console.log('Event Type:', event.type);
+    console.log('Prevent Default:', event.defaultPrevented);
+    console.groupEnd();
+    
+    this.activePointerId = pointer.identifier;
+    this.touchHome = { x: pointer.x, y: pointer.y };
+    this.playerHome = { x: this.player.x, y: this.player.y };
+}
+
+handleTouchMove(pointer, event) {
+    console.group(`[TOUCH MOVE]`);
+    console.log('Pointer ID:', pointer.identifier);
+    console.log('Active Pointer ID:', this.activePointerId);
+    console.log('Match:', pointer.identifier === this.activePointerId);
+    console.groupEnd();
+    
+    if (pointer.identifier !== this.activePointerId) {
+        console.log('REJECTED: ID mismatch');
+        return;
+    }
+    // ... existing code
+}
+```
+
+### Step 2: Test Without Pointer ID Check
+Temporarily remove the ID check to see if ANY pointer triggers movement:
+
+```javascript
+handleTouchMove(pointer) {
+    // REMOVE ID CHECK
+    // if (pointer.identifier !== this.activePointerId) return;
+    
+    if (!this.touchHome || !this.playerHome) return;
+    // ... apply movement
+}
+```
+
+**If this works:** Problem is definitely the ID check or pointer ID not being set correctly.
+
+**If this still fails:** Problem is earlier (CSS, Phaser config, or iOS blocking).
+
+### Step 3: Test with `e.preventDefault()`
+Add explicit prevention to ensure touch events aren't consumed:
+
+```javascript
+handleTouchStart(pointer, event) {
+    if (event) event.preventDefault();
+    // ... existing code
+}
+```
+
+### Step 4: Check Phaser Input Config
+Verify game config allows multi-touch in `index.html`:
+
+```javascript
+const config = {
+    // ...
+    input: {
+        touch: {
+            preventDefault: true
+        }
+    }
+};
+```
+
+### Step 5: Test on Different Device/Browser
+- Try Android device (different touch handling)
+- Try desktop with mouse + touch emulation
+- Try different iOS browser (Chrome on iOS vs Safari)
+
+---
+
+## Expected Logs for Working Multi-Touch
+
+**Scenario: Touch 1 → Touch 2 → Move 2 → Lift 1**
+
+```
+[TOUCH START] Pointer ID: 0, Is Primary: true, Active: null → Set Active: 0
+[TOUCH START] Pointer ID: 1, Is Primary: false, Active: 0 → Set Active: 1
+[TOUCH MOVE] Pointer ID: 1, Active: 1, Match: true → MOVEMENT APPLIED
+[TOUCH MOVE] Pointer ID: 0, Active: 1, Match: false → REJECTED
+[TOUCH END] Pointer ID: 0, Active: 1 → REJECTED (not active)
+[TOUCH END] Pointer ID: 1, Active: 1 → ACTIVE CLEARED
+```
+
+---
+
+## Known Working Implementations
+
+**Reference Code from Other Phaser 3 Games:**
+
+```javascript
+// Alternative: Track multiple pointers
+this.activePointers = {}; // { id: { homeX, homeY, playerHomeX, playerHomeY } }
+
+handleTouchStart(pointer) {
+    this.activePointers[pointer.identifier] = {
+        touchHome: { x: pointer.x, y: pointer.y },
+        playerHome: { x: this.player.x, y: this.player.y }
+    };
+}
+
+handleTouchMove(pointer) {
+    const data = this.activePointers[pointer.identifier];
+    if (!data) return;
+    
+    const dx = pointer.x - data.touchHome.x;
+    const dy = pointer.y - data.touchHome.y;
+    // Apply movement
+}
+
+handleTouchEnd(pointer) {
+    delete this.activePointers[pointer.identifier];
+}
+```
+
+---
+
+## File Locations
+
+- **game.js**: Lines ~60-70 (input setup), ~189-230 (touch handlers)
+- **index.html**: Check Phaser config and CSS
+- **Console output**: Look for `[TOUCH]` prefixed logs
+
+---
+
+## Timeline
+
+- **Current Date**: 2026-04-21
+- **Issue Discovered**: During iPhone testing
+- **Last Commit**: Multi-touch pointer ID tracking implementation
+- **Next Session**: Debug multi-touch based on hypotheses above
+
+---
+
+## Summary
+
+Game works perfectly with single-touch. Multi-touch fails because second pointer is rejected. Need to determine if issue is:
+1. iOS blocking non-primary pointers
+2. CSS preventing multi-touch
+3. Phaser config issue
+4. Pointer ID tracking implementation bug
+
+Start with logging to see what iOS is actually sending.
+
+---
+
+# Enemy Type Brainstorming Session (2026-04-21)
+
+## Inspiration
+User discovered unexpected physics interactions between bullets and enemies during testing. These emergent behaviors inspired desire to create reactive enemy types that respond dynamically to player actions.
+
+---
+
+## Core Design Philosophy
+- **Mobile-first design**: All enemy types must work well on 360x640 resolution
+- **Physics-based interactions**: Enemies should respond to bullets in interesting ways
+- **Touch-based gameplay**: Visual feedback should be clear during direct touch controls
+- **Progressive complexity**: Start with simple enemies, introduce complex ones as player advances
+
+---
+
+## Enemy Type Concepts
+
+### 1. Bouncer Enemies 🏓
+**Description:** Round, metallic/glass-like enemies that reflect bullets
+- **Behavior:** Bullets bounce off at angle based on hit position
+- **Effect:** Creates unpredictable bullet trajectories player may need to dodge
+- **Visual:** Shiny surface, metallic sound on impact
+- **Implementation:** Calculate deflection angle based on bullet entry point
+
+**Design Notes:**
+- Could be a mid-game enemy type
+- Creates skill ceiling: player learns bullet deflection patterns
+- Risk/Reward: Can turn player's bullets against them or clear enemy clusters
+
+---
+
+### 2. Splitter Enemies 🧬
+**Description:** Larger enemy that divides into smaller ones when hit
+- **Behavior:** On first hit, splits into 3-4 smaller enemies
+- **Effect:** Increases action density temporarily
+- **Visual:** Cracking animation, then separation
+- **Implementation:** Despawn parent, spawn children at same position with scattered velocities
+
+**Design Notes:**
+- Great for testing player's bullet management skills
+- Smaller enemies could be faster/weaker or slower/tankier
+- Could chain: smaller ones might split again on second hit
+
+---
+
+### 3. Reflector Enemies 🪞
+**Description:** Flat enemy with mirror surface
+- **Behavior:** Reflects bullets back toward player
+- **Effect:** Dangerous if player gets too close
+- **Visual:** Mirror-like, angled surface
+- **Implementation:** Reverse bullet velocity vector
+
+**Design Notes:**
+- Creates tense "don't get too close" gameplay
+- Could have directionality (reflects only from certain angles)
+- High-skill ceiling: player must angle shots carefully
+
+---
+
+### 4. Pushable Enemies 🛷
+**Description:** Enemies that build momentum when pushed by bullets
+- **Behavior:** Gain velocity from bullet impacts
+- **Effect:** Can push into other enemies for chain destruction
+- **Visual:** Motion blur, particle trail
+- **Implementation:** Add velocity vectors from bullet impacts, cap at max speed
+
+**Design Notes:**
+- Creates satisfying physics moments
+- Heavy enemies = less pushed, light enemies = fly far
+- Could enable "bullet billiards" style high-score plays
+
+---
+
+### 5. Absorber Enemies ⚡
+**Description:** Enemy that collects bullets and charges up
+- **Behavior:** Each bullet hit increases charge level
+- **Effect:** Releases large counter-shot when full (or explodes)
+- **Visual:** Glowing, growing aura, filling bar
+- **Implementation:** Track hit count, trigger release at threshold
+
+**Design Notes:**
+- Creates risk assessment: shoot or avoid?
+- Could have visual warning when nearly full
+- Could vary: some explode, some release projectile, some release particles
+
+---
+
+## Mobile UX Considerations
+
+| Enemy Type | Mobile Consideration | Risk Level |
+|------------|---------------------|------------|
+| **Bouncer** | Deflected bullets must be visible on small screen | Medium |
+| **Splitter** | Too many small enemies could clutter 360px width | High |
+| **Reflector** | Player might not notice danger in time | High |
+| **Pushable** | Physics must feel responsive with touch timing | Medium |
+| **Absorber** | Visual feedback must be clear without UI elements | Medium |
+
+---
+
+## Implementation Complexity
+
+| Enemy Type | Physics Needed | Visual Complexity | Spawn Logic | Debug Difficulty |
+|------------|---------------|-------------------|-------------|------------------|
+| Bouncer | Medium (angle calculation) | Low | Simple | Medium |
+| Splitter | Low (instant spawn) | Medium | Complex | High |
+| Reflector | Low (vector flip) | Low | Simple | Low |
+| Pushable | High (momentum physics) | Medium | Simple | High |
+| Absorber | Low (hit tracking) | High (charging visual) | Simple | Medium |
+
+---
+
+## Player Feedback Loop
+
+**What makes these enemies exciting:**
+1. **Unpredictability** - Player can't memorize perfect patterns
+2. **Player agency** - Bullet placement matters, not just "hit vs miss"
+3. **Emergent combos** - Bouncing off enemies, chain pushing, etc.
+4. **Visual satisfaction** - Physics interactions feel impactful
+
+**What could go wrong:**
+1. **Too chaotic** - Screen becomes cluttered on small display
+2. **Unfair deaths** - Player hit by own bullet without warning
+3. **Learning curve** - New enemy types must feel intuitive
+4. **Performance** - Many physics calculations per frame
+
+---
+
+## Questions for Next Session
+
+### **1. Priority: Which enemy type to implement first?**
+- **Safe bet:** Pushable enemies (adds physics without complex rules)
+- **High reward:** Bouncers (most unique interaction)
+- **Complex:** Splitters (requires spawning/management logic)
+
+### **2. How many enemy types at launch?**
+- **Minimal:** 1-2 types + basic enemy
+- **Balanced:** 3-4 types + basic enemy
+- **Maximal:** All 5 types + basic enemy
+
+### **3. Progression system?**
+- **Simple:** Random spawn with increasing difficulty
+- **Wave-based:** Specific enemy types per wave
+- **Adaptive:** Enemy types based on player performance
+
+### **4. Physics vs. Custom Logic?**
+- Use Phaser Arcade physics for pushable/bouncer?
+- Custom math for reflector/absorber?
+- Hybrid approach?
+
+### **5. Audio design?**
+- Different sound per enemy type?
+- Physics sounds (bounce, shatter, absorb)?
+- Warning sounds before dangerous events?
+
+---
+
+## Technical Considerations
+
+### Bullet Tracking
+```javascript
+// Example: Bouncer deflection logic
+handleBulletHit(bullet, enemy) {
+    // Calculate impact point relative to enemy center
+    const impactX = bullet.x - enemy.x;
+    const impactY = bullet.y - enemy.y;
+    
+    // Calculate deflection angle
+    const angle = Math.atan2(impactY, impactX) + Math.PI; // +PI to reverse
+    
+    // Apply new velocity
+    bullet.body.setVelocity(
+        Math.cos(angle) * BULLET_SPEED,
+        Math.sin(angle) * BULLET_SPEED
+    );
+    
+    // Visual feedback
+    this.tweens.add({
+        targets: enemy,
+        alpha: 1,
+        duration: 100,
+        yoyo: true,
+        repeat: 1
+    });
+}
+```
+
+### Splitter Spawning
+```javascript
+// Example: Splitter logic
+handleSplitterHit(enemy) {
+    // Store split pattern
+    const splitPattern = [
+        { offsetX: -20, offsetY: -10, velocity: 50 },
+        { offsetX: 20, offsetY: -10, velocity: 50 },
+        { offsetX: 0, offsetY: 20, velocity: 75 },
+        { offsetX: -15, offsetY: 15, velocity: 60 }
+    ];
+    
+    // Spawn children
+    splitPattern.forEach(pattern => {
+        const child = this.add.rectangle(
+            enemy.x + pattern.offsetX,
+            enemy.y + pattern.offsetY,
+            ENEMY_SIZE_SMALL,
+            ENEMY_SIZE_SMALL,
+            COLOR_ENEMY_CHILD
+        );
+        // ... physics setup, velocity, etc.
+    });
+    
+    // Despawn parent with particle effect
+    enemy.destroy();
+    this.createParticleSystem(enemy.x, enemy.y);
+}
+```
+
+---
+
+## Art Direction Ideas
+
+### Basic Enemy
+- Simple geometric shape
+- Neutral color (gray/blue)
+- Minimal animation
+
+### Bouncer
+- Circular shape
+- Metallic/shiny color
+- Subtle rotation animation
+- Particle burst on impact
+
+### Splitter
+- Large blob/organic shape
+- Glowing seams (indicates weak points)
+- Crack animation before splitting
+- Children: smaller, different colors
+
+### Reflector
+- Angular shape (diamond/triangle)
+- Mirror-like color (silver/chrome)
+- Edge glow
+- Beam visual when reflecting
+
+### Pushable
+- Weighted appearance (heavier = larger/square)
+- Motion blur trail
+- Sway animation when idle
+- Dust particles when moving fast
+
+### Absorber
+- Pulsing/crescendo animation
+- Color changes as it charges
+- Energy particles swirling in
+- Warning flash before release
+
+---
+
+## Summary
+
+**User's Vision:** Multiple enemy types that respond to bullets with physics-based interactions.
+
+**Top 3 Ideas to Explore:**
+1. **Pushable enemies** (satisfying physics chain reactions)
+2. **Bouncer enemies** (unpredictable bullet deflection)
+3. **Splitter enemies** (progressive complexity)
+
+**Next Steps:**
+- Test which interactions feel best with touch controls
+- Prototype each enemy type separately
+- Balance visual clarity on 360x640 resolution
+- Consider mobile performance (CPU vs. visual complexity)
+
+**Session Notes:**
+- User excited about emergent gameplay
+- Wants to dig deeper before committing to implementation
+- No code changes yet - planning phase only
+- Sleep first, plan tomorrow!
+
+---
+
+(End of file)

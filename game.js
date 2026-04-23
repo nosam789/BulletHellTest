@@ -28,6 +28,19 @@ class MainScene extends Phaser.Scene {
         });
         this.scoreText.setDepth(100);
         
+        // Debug overlay
+        this.debugText = this.add.text(16, 600, '', {
+            fontSize: '12px',
+            fill: '#00ff00',
+            backgroundColor: '#000000',
+            padding: { x: 8, y: 4 },
+            wrap: { width: 328 }
+        });
+        this.debugText.setDepth(200);
+        this.eventLog = [];
+        this.maxLogEntries = 6;
+        this.updateDebug();
+        
         // Create player
         this.player = this.add.rectangle(
             BASE_WIDTH / 2,
@@ -188,19 +201,34 @@ class MainScene extends Phaser.Scene {
     }
 
     handleTouchStart(pointer) {
+        const isPrimary = pointer.isPrimary ? 'YES' : 'NO';
+        const logEntry = `DOWN ID:${pointer.identifier} Pri:${isPrimary}`;
+        this.eventLog.unshift(logEntry);
+        this.eventLog = this.eventLog.slice(0, this.maxLogEntries);
+        
         this.activePointerId = pointer.identifier;
         this.touchHome = { x: pointer.x, y: pointer.y };
         this.playerHome = { x: this.player.x, y: this.player.y };
         
-        console.log(`[TOUCH] Pointer ${pointer.identifier} is now active`);
+        this.updateDebug();
+        
+        console.log(`[TOUCH START] ID: ${pointer.identifier}, isPrimary: ${isPrimary}`);
     }
 
     handleTouchMove(pointer) {
-        if (pointer.identifier !== this.activePointerId) {
+        const matched = pointer.identifier === this.activePointerId;
+        
+        if (!matched) {
+            this.eventLog.unshift(`MOVE ID:${pointer.identifier} REJECTED (active:${this.activePointerId})`);
+            this.eventLog = this.eventLog.slice(0, this.maxLogEntries);
+            this.updateDebug();
             return;
         }
         
         if (!this.touchHome || !this.playerHome) {
+            this.eventLog.unshift(`MOVE ID:${pointer.identifier} NO HOMES`);
+            this.eventLog = this.eventLog.slice(0, this.maxLogEntries);
+            this.updateDebug();
             return;
         }
         
@@ -217,6 +245,13 @@ class MainScene extends Phaser.Scene {
             PLAYER_SIZE / 2,
             BASE_HEIGHT - PLAYER_SIZE / 2
         );
+        
+        if (this.time.now - this.lastLogTime > 200) {
+            this.eventLog.unshift(`MOVE ID:${pointer.identifier} dx:${Math.round(dx)} dy:${Math.round(dy)}`);
+            this.eventLog = this.eventLog.slice(0, this.maxLogEntries);
+            this.updateDebug();
+            this.lastLogTime = this.time.now;
+        }
     }
 
     handleTouchEnd(pointer) {
@@ -254,6 +289,15 @@ class MainScene extends Phaser.Scene {
         enemy.destroy();
         this.score -= 5;
         this.scoreText.setText('Score: ' + this.score);
+    }
+
+    updateDebug() {
+        let debugInfo = `Active: ${this.activePointerId || 'N/A'}\n`;
+        debugInfo += `TouchH: ${this.touchHome ? '${this.touchHome.x},${this.touchHome.y}' : 'null'}\n`;
+        debugInfo += `PlayerH: ${this.playerHome ? '${this.playerHome.x},${this.playerHome.y}' : 'null'}\n`;
+        debugInfo += `---\n`;
+        debugInfo += this.eventLog.join('\n');
+        this.debugText.setText(debugInfo);
     }
 }
 
