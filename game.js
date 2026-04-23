@@ -91,6 +91,11 @@ class MainScene extends Phaser.Scene {
         this.lastFired = 0;
         this.lastSpawned = 0;
         
+        this.activePointers = new Map();
+        this.activePointerId = null;
+        this.pointerCounter = 0;
+        this.lastLogTime = 0;
+        
         console.log('[INIT] Game started. Touch to move, auto-fire enabled.');
     }
 
@@ -201,69 +206,105 @@ class MainScene extends Phaser.Scene {
     }
 
     handleTouchStart(pointer) {
-        const isPrimary = pointer.isPrimary ? 'YES' : 'NO';
-        const logEntry = `DOWN ID:${pointer.identifier} Pri:${isPrimary}`;
-        this.eventLog.unshift(logEntry);
-        this.eventLog = this.eventLog.slice(0, this.maxLogEntries);
-        
-        this.activePointerId = pointer.identifier;
-        this.touchHome = { x: pointer.x, y: pointer.y };
-        this.playerHome = { x: this.player.x, y: this.player.y };
-        
-        this.updateDebug();
-        
-        console.log(`[TOUCH START] ID: ${pointer.identifier}, isPrimary: ${isPrimary}`);
+        if (!this.activePointers.has(pointer.identifier)) {
+            this.pointerCounter++;
+            this.activePointers.set(pointer.identifier, {
+                touchHome: { x: pointer.x, y: pointer.y },
+                playerHome: { x: this.player.x, y: this.player.y },
+                order: this.pointerCounter,
+                isPrimary: pointer.isPrimary
+            });
+            
+            if (!this.activePointerId) {
+                this.activePointerId = pointer.identifier;
+            }
+            
+            const isPrimary = pointer.isPrimary ? 'YES' : 'NO';
+            this.logEvent(`DOWN ID:${pointer.identifier} Pri:${isPrimary} Count:${this.activePointers.size}`);
+            this.updateDebug();
+            
+            console.log(`[TOUCH START] ID: ${pointer.identifier}, isPrimary: ${isPrimary}`);
+        }
     }
 
     handleTouchMove(pointer) {
+        if (!this.activePointers.has(pointer.identifier)) {
+            this.logEvent(`MOVE ID:${pointer.identifier} UNREGISTERED`);
+            return;
+        }
+        
         const matched = pointer.identifier === this.activePointerId;
         
         if (!matched) {
-            this.eventLog.unshift(`MOVE ID:${pointer.identifier} REJECTED (active:${this.activePointerId})`);
-            this.eventLog = this.eventLog.slice(0, this.maxLogEntries);
-            this.updateDebug();
             return;
         }
         
-        if (!this.touchHome || !this.playerHome) {
-            this.eventLog.unshift(`MOVE ID:${pointer.identifier} NO HOMES`);
-            this.eventLog = this.eventLog.slice(0, this.maxLogEntries);
-            this.updateDebug();
-            return;
-        }
-        
-        const dx = pointer.x - this.touchHome.x;
-        const dy = pointer.y - this.touchHome.y;
+        const state = this.activePointers.get(pointer.identifier);
+        const dx = pointer.x - state.touchHome.x;
+        const dy = pointer.y - state.touchHome.y;
         
         this.player.x = Phaser.Math.Clamp(
-            this.playerHome.x + dx,
+            state.playerHome.x + dx,
             PLAYER_SIZE / 2,
             BASE_WIDTH - PLAYER_SIZE / 2
         );
         this.player.y = Phaser.Math.Clamp(
-            this.playerHome.y + dy,
+            state.playerHome.y + dy,
             PLAYER_SIZE / 2,
             BASE_HEIGHT - PLAYER_SIZE / 2
         );
         
         if (this.time.now - this.lastLogTime > 200) {
-            this.eventLog.unshift(`MOVE ID:${pointer.identifier} dx:${Math.round(dx)} dy:${Math.round(dy)}`);
-            this.eventLog = this.eventLog.slice(0, this.maxLogEntries);
-            this.updateDebug();
+            this.logEvent(`MOVE dx:${Math.round(dx)} dy:${Math.round(dy)}`);
             this.lastLogTime = this.time.now;
         }
     }
 
     handleTouchEnd(pointer) {
-        if (pointer.identifier !== this.activePointerId) {
-            return;
+        const wasActive = (pointer.identifier === this.activePointerId);
+        
+        if (this.activePointers.has(pointer.identifier)) {
+            this.activePointers.delete(pointer.identifier);
+            
+            if (wasActive && this.activePointers.size > 0) {
+                let newActiveId = null;
+                let maxOrder = -1;
+                
+                for (const [id, state] of this.activePointers.entries()) {
+                    if (state.order > maxOrder) {
+                        maxOrder = state.order;
+                        newActiveId = id;
+                    }
+                }
+                
+                this.activePointerId = newActiveId;
+                this.logEvent(`HANDOFF to ID:${newActiveId}`);
+            } else if (this.activePointers.size === 0) {
+                this.activePointerId = null;
+            }
+            
+            this.logEvent(`UP ID:${pointer.identifier} Count:${this.activePointers.size}`);
+            this.updateDebug();
+        }
+    }
+
+    logEvent(message) {
+        this.eventLog.unshift(message);
+        this.eventLog = this.eventLog.slice(0, this.maxLogEntries);
+    }
+
+    updateDebug() {
+        let debugInfo = `Active: ${this.activePointerId || 'N/A'}\n`;
+        debugInfo += `Registered: ${this.activePointers.size}:\n`;
+        
+        for (const [id, state] of this.activePointers.entries()) {
+            const isActive = (id === this.activePointerId) ? '←ACTIVE' : 'wait';
+            debugInfo += `  ID:${id} o:${state.order} Pri:${state.isPrimary} ${isActive}\n`;
         }
         
-        this.activePointerId = null;
-        this.touchHome = null;
-        this.playerHome = null;
-        
-        console.log(`[TOUCH] Pointer ${pointer.identifier} released`);
+        debugInfo += `---\n`;
+        debugInfo += this.eventLog.join('\n');
+        this.debugText.setText(debugInfo);
     }
 
     hitEnemy(bullet, enemy) {
