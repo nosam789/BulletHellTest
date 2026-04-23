@@ -80,6 +80,14 @@ class MainScene extends Phaser.Scene {
         this.input.on('pointerout', this.handleTouchEnd, this);
         this.input.on('pointerupoutside', this.handleTouchEnd, this);
         
+        // Diagnostic: Log all pointer events at Phaser level
+        this.input.on('pointerdown', (pointer) => {
+            this.logEvent(`[INPUT] DOWN ID:${pointer.identifier}`);
+        }, this);
+        this.input.on('pointerup', (pointer) => {
+            this.logEvent(`[INPUT] UP ID:${pointer.identifier}`);
+        }, this);
+        
         // Set up collisions
         this.physics.add.collider(this.bullets, this.enemies, this.hitEnemy, null, this);
         this.physics.add.overlap(this.player, this.enemies, this.hitPlayer, null, this);
@@ -349,6 +357,11 @@ const config = {
     height: BASE_HEIGHT,
     parent: 'game-container',
     backgroundColor: '#' + COLOR_BG.toString(16).padStart(6, '0'),
+    input: {
+        multiTouch: true,
+        maxPointers: 10,
+        preventDefault: true
+    },
     physics: {
         default: 'arcade',
         arcade: {
