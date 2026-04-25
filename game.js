@@ -28,19 +28,6 @@ class MainScene extends Phaser.Scene {
         });
         this.scoreText.setDepth(100);
         
-        // Debug overlay
-        this.debugText = this.add.text(16, 600, '', {
-            fontSize: '12px',
-            fill: '#00ff00',
-            backgroundColor: '#000000',
-            padding: { x: 8, y: 4 },
-            wrap: { width: 328 }
-        });
-        this.debugText.setDepth(200);
-        this.eventLog = [];
-        this.maxLogEntries = 6;
-        this.updateDebug();
-        
         // Create player
         this.player = this.add.rectangle(
             BASE_WIDTH / 2,
@@ -70,7 +57,7 @@ class MainScene extends Phaser.Scene {
             right: Phaser.Input.Keyboard.KeyCodes.D
         });
         
-        // Set up direct touch controls (1:1 mapping with pointer ID tracking)
+        // Set up direct touch controls (1:1 mapping)
         this.activePointerId = null;
         this.touchHome = null;
         this.playerHome = null;
@@ -79,14 +66,6 @@ class MainScene extends Phaser.Scene {
         this.input.on('pointerup', this.handleTouchEnd, this);
         this.input.on('pointerout', this.handleTouchEnd, this);
         this.input.on('pointerupoutside', this.handleTouchEnd, this);
-        
-        // Diagnostic: Log all pointer events at Phaser level
-        this.input.on('pointerdown', (pointer) => {
-            this.logEvent(`[INPUT] DOWN ID:${pointer.identifier}`);
-        }, this);
-        this.input.on('pointerup', (pointer) => {
-            this.logEvent(`[INPUT] UP ID:${pointer.identifier}`);
-        }, this);
         
         // Set up collisions
         this.physics.add.collider(this.bullets, this.enemies, this.hitEnemy, null, this);
@@ -98,13 +77,6 @@ class MainScene extends Phaser.Scene {
         this.score = 0;
         this.lastFired = 0;
         this.lastSpawned = 0;
-        
-        this.activePointers = new Map();
-        this.activePointerId = null;
-        this.pointerCounter = 0;
-        this.lastLogTime = 0;
-        
-        console.log('[INIT] Game started. Touch to move, auto-fire enabled.');
     }
 
     update(time) {
@@ -214,105 +186,33 @@ class MainScene extends Phaser.Scene {
     }
 
     handleTouchStart(pointer) {
-        if (!this.activePointers.has(pointer.identifier)) {
-            this.pointerCounter++;
-            this.activePointers.set(pointer.identifier, {
-                touchHome: { x: pointer.x, y: pointer.y },
-                playerHome: { x: this.player.x, y: this.player.y },
-                order: this.pointerCounter,
-                isPrimary: pointer.isPrimary
-            });
-            
-            if (!this.activePointerId) {
-                this.activePointerId = pointer.identifier;
-            }
-            
-            const isPrimary = pointer.isPrimary ? 'YES' : 'NO';
-            this.logEvent(`DOWN ID:${pointer.identifier} Pri:${isPrimary} Count:${this.activePointers.size}`);
-            this.updateDebug();
-            
-            console.log(`[TOUCH START] ID: ${pointer.identifier}, isPrimary: ${isPrimary}`);
-        }
+        this.activePointerId = pointer.identifier;
+        this.touchHome = { x: pointer.x, y: pointer.y };
+        this.playerHome = { x: this.player.x, y: this.player.y };
     }
 
     handleTouchMove(pointer) {
-        if (!this.activePointers.has(pointer.identifier)) {
-            this.logEvent(`MOVE ID:${pointer.identifier} UNREGISTERED`);
-            return;
-        }
+        if (pointer.identifier !== this.activePointerId) return;
         
-        const matched = pointer.identifier === this.activePointerId;
-        
-        if (!matched) {
-            return;
-        }
-        
-        const state = this.activePointers.get(pointer.identifier);
-        const dx = pointer.x - state.touchHome.x;
-        const dy = pointer.y - state.touchHome.y;
+        const dx = pointer.x - this.touchHome.x;
+        const dy = pointer.y - this.touchHome.y;
         
         this.player.x = Phaser.Math.Clamp(
-            state.playerHome.x + dx,
+            this.playerHome.x + dx,
             PLAYER_SIZE / 2,
             BASE_WIDTH - PLAYER_SIZE / 2
         );
         this.player.y = Phaser.Math.Clamp(
-            state.playerHome.y + dy,
+            this.playerHome.y + dy,
             PLAYER_SIZE / 2,
             BASE_HEIGHT - PLAYER_SIZE / 2
         );
-        
-        if (this.time.now - this.lastLogTime > 200) {
-            this.logEvent(`MOVE dx:${Math.round(dx)} dy:${Math.round(dy)}`);
-            this.lastLogTime = this.time.now;
-        }
     }
 
     handleTouchEnd(pointer) {
-        const wasActive = (pointer.identifier === this.activePointerId);
-        
-        if (this.activePointers.has(pointer.identifier)) {
-            this.activePointers.delete(pointer.identifier);
-            
-            if (wasActive && this.activePointers.size > 0) {
-                let newActiveId = null;
-                let maxOrder = -1;
-                
-                for (const [id, state] of this.activePointers.entries()) {
-                    if (state.order > maxOrder) {
-                        maxOrder = state.order;
-                        newActiveId = id;
-                    }
-                }
-                
-                this.activePointerId = newActiveId;
-                this.logEvent(`HANDOFF to ID:${newActiveId}`);
-            } else if (this.activePointers.size === 0) {
-                this.activePointerId = null;
-            }
-            
-            this.logEvent(`UP ID:${pointer.identifier} Count:${this.activePointers.size}`);
-            this.updateDebug();
-        }
-    }
-
-    logEvent(message) {
-        this.eventLog.unshift(message);
-        this.eventLog = this.eventLog.slice(0, this.maxLogEntries);
-    }
-
-    updateDebug() {
-        let debugInfo = `Active: ${this.activePointerId || 'N/A'}\n`;
-        debugInfo += `Registered: ${this.activePointers.size}:\n`;
-        
-        for (const [id, state] of this.activePointers.entries()) {
-            const isActive = (id === this.activePointerId) ? '←ACTIVE' : 'wait';
-            debugInfo += `  ID:${id} o:${state.order} Pri:${state.isPrimary} ${isActive}\n`;
-        }
-        
-        debugInfo += `---\n`;
-        debugInfo += this.eventLog.join('\n');
-        this.debugText.setText(debugInfo);
+        this.activePointerId = null;
+        this.touchHome = null;
+        this.playerHome = null;
     }
 
     hitEnemy(bullet, enemy) {
@@ -340,14 +240,6 @@ class MainScene extends Phaser.Scene {
         this.scoreText.setText('Score: ' + this.score);
     }
 
-    updateDebug() {
-        let debugInfo = `Active: ${this.activePointerId || 'N/A'}\n`;
-        debugInfo += `TouchH: ${this.touchHome ? '${this.touchHome.x},${this.touchHome.y}' : 'null'}\n`;
-        debugInfo += `PlayerH: ${this.playerHome ? '${this.playerHome.x},${this.playerHome.y}' : 'null'}\n`;
-        debugInfo += `---\n`;
-        debugInfo += this.eventLog.join('\n');
-        this.debugText.setText(debugInfo);
-    }
 }
 
 // Create the game
@@ -358,9 +250,8 @@ const config = {
     parent: 'game-container',
     backgroundColor: '#' + COLOR_BG.toString(16).padStart(6, '0'),
     input: {
-        multiTouch: true,
-        maxPointers: 10,
-        preventDefault: true
+        multiTouch: false,
+        preventDefault: false
     },
     physics: {
         default: 'arcade',
