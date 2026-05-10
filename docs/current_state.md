@@ -1,178 +1,145 @@
-# Current Game State - Vertical Bullet Hell
+# Current State - Vertical Bullet Hell
+<!-- Last Updated: Weapon System + Debug Menu Implementation -->
 
 ## Overview
-Vertical scrolling shooter built with Phaser.js 3.60.0. Mobile-optimized for portrait orientation with PC keyboard fallback. All graphics are procedurally generated (no external assets).
+Component-based, data-driven vertical bullet hell shooter built with **Phaser 3.90.0**. Mobile-optimized for portrait orientation (360x640). All graphics are colored rectangles (no external assets).
+
+---
+
+## Architecture
+
+### File Structure
+```
+src/
+├── bullets/
+│   ├── BulletFactory.js         # Enemy bullet creation
+│   └── PlayerBulletFactory.js   # Player bullet pattern generation
+├── config/gameConstants.js      # All numeric constants
+├── debug/                       # Debug system (menu, visualizers, constants)
+├── enemies/                     # Enemy system (BaseEnemy + 3 types)
+├── patterns/PatternSystem.js    # 6 enemy shooting patterns
+├── scenes/MainScene.js          # Game orchestration
+├── weapons/                     # Weapon system (NEW)
+│   ├── WeaponManager.js         # Multi-weapon manager
+│   └── WeaponRegistry.js        # Weapon configs
+└── system/                      # Core systems
+    ├── spawner/
+    │   └── spawnerSystem.js     # Enemy spawner
+    ├── collision/
+    │   └── collisionSystem.js   # Collision detection
+    ├── PauseManager.js          # Stack-based pause system
+    └── DebugSystem.js           # Debug menu & input handling
+```
+
+### Key Design Patterns
+- **Component-based**: Each system in separate module
+- **Data-driven**: Weapon configs in `WeaponRegistry.js`, Enemy configs in `EnemyRegistry.js`
+- **State machines**: Each enemy has ENTER/BEHAVIOR/EXIT states
+- **Pattern system**: Reusable bullet shooting patterns (enemy & player)
+- **Multi-weapon**: Player can equip multiple weapons simultaneously
+- **Stack-based pause**: PauseManager maintains pause state stack for reentrancy
+- **Debug menu**: Checkbox-based feature toggles with keyboard navigation
 
 ---
 
 ## Game Constants
 
-| Constant | Value | Description |
-|----------|-------|-------------|
-| BASE_WIDTH | 360 | Canvas width |
-| BASE_HEIGHT | 640 | Canvas height |
-| PLAYER_SIZE | 24 | Player dimensions (square) |
-| PLAYER_SPEED | 300 px/s | Max movement speed |
-| BULLET_SIZE | 6 | Bullet width |
-| BULLET_SPEED | 500 px/s | Bullet velocity (upward) |
+Centralized in `gameConstants.js`:
+
+| Constant | Value | Notes |
+|---------|-------|-------|
+| BASE_WIDTH | 360 | Portrait orientation |
+| BASE_HEIGHT | 640 | Portrait orientation |
+| PLAYER_SIZE | 24 px | Green square |
+| PLAYER_SPEED | 300 px/s | Max velocity |
+| BULLET_SPEED | 500 px/s | Player bullet |
 | BULLET_DAMAGE | 60 | Damage per hit |
-| ENEMY_SIZE | 32 | Enemy dimensions (square) |
-| ENEMY_SPEED | 200 px/s | Enemy fall speed |
-| ENEMY_SPAWN_RATE | 667 ms | Spawn interval |
-| ENEMY_HEALTH | 100 | HP per enemy |
-| FIRE_COOLDOWN | 200 ms | Auto-fire rate |
-| COLOR_PLAYER | 0x00ff00 | Green |
-| COLOR_BULLET | 0xffff00 | Yellow |
-| COLOR_ENEMY | 0x0000ff | Blue |
-| COLOR_BG | 0x000011 | Dark blue background |
+| FIRE_COOLDOWN | 200 ms | Spacebar fire |
+| DEBUG_PAUSE | true/false | Console logging toggle |
 
 ---
 
-## Player System
+## Core Systems
 
-### Visuals
+### Player
 - 24x24 green square
-- Positioned at bottom center (y = 560)
-- Origin centered (0.5, 0.5)
-- Depth: 10
+- WASD/Arrow keys (diagonal normalized)
+- **Weapon system**: Multi-weapon support with auto-fire enabled
+- **No player health yet**
+- **Paused during game pause** (motion stopped)
 
-### Movement
-- **Keyboard**: WASD or Arrow keys (4-directional)
-- **Touch**: 1:1 drag-to-move (single pointer only)
-- Diagonal movement normalized to prevent speed boost
-- Clamped to screen bounds (PLAYER_SIZE/2 margin)
-- Max velocity: 300 px/s (all directions)
+### Enemies
+- **3 types**, all rectangles/triangles/circles:
+  - **Faller**: Blue square, falls straight down (50% spawn weight)
+  - **Tapper**: Pink triangle, tracks player with oscillation (30%)
+  - **Shooter**: Red circle, hovers and shoots patterns (20%)
+- **Health system**: Enemies take damage, flash random color on hit
+- **No stagger**: Enemies do NOT knock back when hit
+- **Paused during game pause** (motion stopped)
 
-### Touch Control Details
-- Single active pointer tracked (`activePointerId`)
-- Stores initial touch position (`touchHome`) and player position (`playerHome`)
-- Movement calculated as delta from initial positions
-- Second pointer ignored (no multi-touch)
-- Lift finger → player stops
+### Bullets
+- **Player**: 6x12 yellow rectangle, 500 px/s upward (configurable per weapon)
+- **Enemy**: 4px red circle, 250 px/s, angle-based
+- **6 enemy patterns**: SINGLE, DOUBLE, TRIPLE, CONE_5, CIRCLE_6, SPREAD_7
+- **3 player weapons**: BASIC, RAPID, SPREAD (see weapons.md)
+- **Paused during game pause** (motion stopped)
 
----
+### Collisions
+- Player bullets → Enemies: 60 damage per hit
+- Enemy bullets → Player: -5 score
+- Enemies → Player: -5 score
+- **Bullets do NOT collide** (bullet hell standard)
+- **All collisions paused during game pause**
 
-## Bullet System
+### Scoring
+- Kill Faller: +10 points
+- Kill Tapper: +20 points
+- Kill Shooter: +30 points
+- Hit by anything: -5 points
+- Score displayed top-left (24px white text)
+- **Scoring pauses during game pause**
 
-### Creation
-- Auto-fire enabled (no manual fire control)
-- Spawns at player position (y - PLAYER_SIZE)
-- 6x12 yellow rectangle
-- Upward velocity: 500 px/s
-- No gravity applied
+### Pause System (NEW)
+- **P key** toggles pause state
+- **Stack-based**: Supports multiple pause levels
+- **Physics freeze**: `scene.physics.world.pause()`
+- **Trajectory preservation**: Exact state saved/resumed
+- **No time events**: Game uses blocked update() instead
+- **Debug menu integration**: Opens/closes with pause
 
-### Behavior
-- Fires every 200ms continuously
-- Destroyed when off-screen (y < -10 or y > BASE_HEIGHT + 10)
-- Managed via `this.bullets` physics group
-
----
-
-## Enemy System
-
-### Spawning
-- Every 667ms
-- Random x-position (clamped to bounds)
-- Starts at y = 0 (top of screen)
-- Falls at 200 px/s
-
-### Health & Damage
-- 100 HP per enemy
-- Takes 60 damage per bullet hit
-- Requires 2 hits to destroy
-- Changes color on damage (random 24-bit color)
-- Destroyed + removed from scene on death
-
-### Cleanup
-- Destroyed when off-screen (y > BASE_HEIGHT + 10)
-- Managed via `this.enemies` physics group
-
----
-
-## Collision Detection
-
-### Bullet → Enemy
-- Handler: `hitEnemy(bullet, enemy)`
-- Bullet destroyed on impact
-- Enemy health reduced by BULLET_DAMAGE
-- On death: +10 score, enemy destroyed
-
-### Player → Enemy
-- Handler: `hitPlayer(player, enemy)`
-- Enemy destroyed on impact
-- Player takes no damage (no health system)
-- Score reduced by 5
-
----
-
-## Scoring
-
-- Starts at 0
-- **Kill enemy**: +10
-- **Player hit**: -5
-- Displayed in top-left corner (24px white text)
-- No game over condition implemented
-- No high score tracking
-
----
-
-## Technical Stack
-
-### Engine
-- Phaser.js 3.60.0 (CDN loaded)
-- Arcade physics system
-- Single scene architecture (`MainScene`)
-
-### Input Configuration
-```javascript
-input: {
-    multiTouch: false,     // Single pointer only
-    preventDefault: false  // Allow browser gestures
-}
-```
-
-### Scaling
-- `Phaser.Scale.RESIZE` mode
-- Auto-centered both axes
-- Adapts to viewport size
-
-### File Structure
-- `index.html` - Game container + Phaser CDN
-- `game.js` - All game logic (271 lines)
-- No external assets
+### Debug System (UPDATED)
+- **Debug menu UI**: Full interactive menu with checkbox toggles
+- **Categories**: VISUALIZERS and PLAYER_WEAPONS
+- **DebugVisualizers**: Draw hitboxes on entities
+- **DebugInputHandler**: Captures menu keypresses
+- **DebugController**: Manages menu state/interactions
+- **Weapon toggling**: Enable/disable weapons at runtime
+- **Visualizer toggling**: Hitbox visualization
+- **Keyboard navigation**: UP/DOWN/ENTER/BACKSPACE
 
 ---
 
 ## Known Limitations
 
-1. **No game over** - Score can go negative indefinitely
-2. **No player health** - Player takes no damage
-3. **No manual fire** - Auto-fire always on
-4. **No multi-touch** - Second finger ignored
-5. **No sound** - Audio system not implemented
-6. **No restart** - Requires page refresh
-7. **Placeholder graphics** - All shapes are colored rectangles
-8. **Single enemy type** - No variety in behavior
+1. **No player health** - game never ends
+2. **No game over** - infinite play
+3. **No power-ups** or upgrades
+4. **No sound** or music
+5. **Placeholder graphics** - all colored rectangles
+6. **Global color-flash** on hit (not per-enemy configurable)
+7. **No enemy stagger** on hit (no knockback/physics reaction)
+8. **No custom hitboxes** - all enemies use full sprite as collider
+9. **Game pauses but time events continue** (timers still run)
+10. **Touch controls not working** (need to restore)
+11. **Game is tiny on screen** (needs scaling/resolution fix)
 
 ---
 
-## Recent Changes (Latest)
+## Technical Stack
 
-- **Removed**: Multi-touch/pointer handoff system
-- **Removed**: Debug overlay UI and event logging
-- **Simplified**: Touch controls to single-pointer 1:1 mapping
-- **Cleaned**: Input config (`multiTouch: false`)
-- **Status**: Codebase streamlined to core gameplay only
-
----
-
-## Next Potential Improvements
-
-- Player health system with game over
-- Manual fire toggle (hold-to-fire)
-- Enemy variety (patterns, speeds, health)
-- Particle effects on explosions
-- Sound effects
-- High score persistence
-- Better graphics (sprites)
-- Pause/menu system
+- **Phaser 3.60.0**
+- **Vite 5.x** (dev server + bundler)
+- **ES6 modules**
+- **Arcade physics**
+- **Stack-based pause system** (custom implementation)
+- **Multi-weapon system** (custom implementation)

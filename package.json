@@ -1,0 +1,17 @@
+{
+  "name": "bullet-hell",
+  "version": "1.0.0",
+  "description": "Vertical scrolling bullet hell shooter built with Phaser 3",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "devDependencies": {
+    "vite": "^5.0.0"
+  },
+  "dependencies": {
+    "phaser": "^3.60.0"
+  }
+}
