@@ -69,6 +69,8 @@ export default class MainScene extends Phaser.Scene {
         
         // Setup touch controls
         this.input.on('pointerdown', this.handleTouchStart, this);
+        this.input.on('pointermove', this.handleTouchMove, this);
+        this.input.on('pointerup', this.handleTouchEnd, this);
     }
     
     update(time, delta) {
