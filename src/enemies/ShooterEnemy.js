@@ -9,14 +9,7 @@ export class ShooterEnemy extends BaseEnemy {
     }
     
     createSprite() {
-        const sprite = this.scene.add.rectangle(
-            0, 0,
-            this.config.size,
-            this.config.size,
-            this.config.color
-        ).setOrigin(0.5, 0.5);
-        
-        return sprite;
+        return this.createShape();
     }
     
     destroySprite() {

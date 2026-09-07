@@ -134,6 +134,25 @@ export class BaseEnemy {
         }
     }
     
+    // Builds the game object matching this.config.shape, centered at (0,0)
+    createShape() {
+        const shape = this.config.shape;
+        
+        if (shape === 'circle') {
+            return this.scene.add.circle(0, 0, this.config.size / 2, this.config.color).setOrigin(0.5, 0.5);
+        }
+        
+        if (shape === 'triangle') {
+            return this.scene.add.triangle(0, 0, 0, 0, this.config.size, 0, this.config.size / 2, this.config.size, this.config.color).setOrigin(0.5, 0.5);
+        }
+        
+        if (shape !== 'rectangle') {
+            console.warn(`Enemy ${this.config.id} unknown shape: ${shape}, falling back to rectangle`);
+        }
+        
+        return this.scene.add.rectangle(0, 0, this.config.size, this.config.size, this.config.color).setOrigin(0.5, 0.5);
+    }
+    
     // Abstract method - each subclass MUST implement
     createSprite() {
         throw new Error('createSprite() must be implemented by subclass');
